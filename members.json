@@ -1,0 +1,50 @@
+[
+  {
+    "slug": "stanley",
+    "name": "Stanley Pang",
+    "url": "https://stanleypang.com",
+    "city": "Toronto",
+    "type": "developer",
+    "active": true
+  },
+  {
+    "slug": "maya",
+    "name": "Maya Chen",
+    "url": "https://mayachen.dev",
+    "city": "Vancouver",
+    "type": "designer",
+    "active": true
+  },
+  {
+    "slug": "luc",
+    "name": "Luc Tremblay",
+    "url": "https://luctremblay.ca",
+    "city": "Montreal",
+    "type": "founder",
+    "active": true
+  },
+  {
+    "slug": "priya",
+    "name": "Priya Sharma",
+    "url": "https://priyasharma.dev",
+    "city": "Calgary",
+    "type": "developer",
+    "active": true
+  },
+  {
+    "slug": "james",
+    "name": "James Makienko",
+    "url": "https://jamesmak.com",
+    "city": "Ottawa",
+    "type": "developer",
+    "active": true
+  },
+  {
+    "slug": "anika",
+    "name": "Anika Rempel",
+    "url": "https://anikarempel.ca",
+    "city": "Winnipeg",
+    "type": "designer",
+    "active": true
+  }
+]
