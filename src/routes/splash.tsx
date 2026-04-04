@@ -90,7 +90,9 @@ function AboutContent() {
             aria-label="Diagram showing how a webring connects member sites in a loop"
           >
             {/* Faint Canada outline background */}
-            <path d={CANADA_OUTLINE_PATH} class="about-ring-bg" />
+            <g transform="translate(-200 -80) scale(0.5)">
+              <path d={CANADA_OUTLINE_PATH} class="about-ring-bg" />
+            </g>
 
             {/* Dashed ring path */}
             <path d={ellipsePath} class="about-ring-path" />
@@ -274,6 +276,10 @@ app.get('/', async (c) => {
     `<button class="ring-dot${i === 0 ? ' is-active' : ''}" data-dot="${i}" aria-label="Go to ${name}"></button>`
   ).join('')
 
+  const previewMembers = JSON.stringify(active.map(m => ({
+    name: m.name, url: m.url, city: m.city || '', type: m.type, slug: m.slug
+  })))
+
   return c.html(
     <>
       {raw('<!DOCTYPE html>')}
@@ -454,8 +460,10 @@ app.get('/', async (c) => {
             .ring-widget {
               display: flex;
               align-items: center;
+              justify-content: center;
               gap: 1cqw;
               flex-shrink: 0;
+              width: 31.68vw;
             }
 
             .ring-widget-arrow {
@@ -574,10 +582,10 @@ app.get('/', async (c) => {
             .about-ring-bg {
               fill: none;
               stroke: var(--border);
-              stroke-width: 0.8;
+              stroke-width: 1;
               stroke-linejoin: round;
-              opacity: 0.07;
-              transform: translate(-180px, -40px) scale(0.55);
+              opacity: 0.06;
+
             }
 
             .about-ring-path {
@@ -597,17 +605,20 @@ app.get('/', async (c) => {
             .about-ring-dot {
               fill: var(--accent);
               opacity: 0;
+              filter: drop-shadow(0 0 4px var(--accent));
               animation: about-dot-appear 0.3s ease-out 2s forwards;
             }
 
             @keyframes about-dot-appear {
               from { opacity: 0; }
-              to { opacity: 0.8; }
+              to { opacity: 0.85; }
             }
 
             .about-ring-node {
               opacity: 0;
               animation: about-node-in 0.4s ease-out forwards;
+              transform-box: fill-box;
+              transform-origin: center;
             }
 
             @keyframes about-node-in {
@@ -619,6 +630,14 @@ app.get('/', async (c) => {
               fill: var(--bg);
               stroke: var(--border);
               stroke-width: 1.5;
+              transition: transform 0.25s ease, stroke 0.25s ease;
+              transform-box: fill-box;
+              transform-origin: center;
+            }
+
+            .about-ring-node:not(.about-ring-node--active):hover .about-node-rect {
+              transform: scale(1.1);
+              stroke: var(--fg-muted);
             }
 
             .about-node-bar {
@@ -629,6 +648,12 @@ app.get('/', async (c) => {
             .about-ring-node--active .about-node-rect {
               stroke: var(--accent);
               stroke-width: 2;
+              animation: about-you-pulse 3s ease-in-out infinite;
+            }
+
+            @keyframes about-you-pulse {
+              0%, 100% { filter: drop-shadow(0 0 0px transparent); }
+              50% { filter: drop-shadow(0 0 6px var(--accent)); }
             }
 
             .about-ring-node--active .about-node-bar {
@@ -644,15 +669,33 @@ app.get('/', async (c) => {
               font-weight: 700;
             }
 
+            .about-body p {
+              opacity: 0;
+              animation: about-text-in 0.5s ease-out forwards;
+            }
+            .about-body p:nth-child(1) { animation-delay: 0.8s; }
+            .about-body p:nth-child(2) { animation-delay: 1.1s; }
+            .about-body p:nth-child(3) { animation-delay: 1.4s; }
+
+            @keyframes about-text-in {
+              from { opacity: 0; transform: translateY(8px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+
             @media (prefers-reduced-motion: reduce) {
               .about-ring-path,
               .about-ring-dot,
-              .about-ring-node {
+              .about-ring-node,
+              .about-body p {
                 animation: none;
                 opacity: 1;
               }
               .about-ring-path { opacity: 0.35; }
-              .about-ring-dot { opacity: 0.8; }
+              .about-ring-dot { opacity: 0.85; }
+              .about-ring-node--active .about-node-rect {
+                animation: none;
+                filter: drop-shadow(0 0 4px var(--accent));
+              }
             }
 
             /* ── Panel 3: Directory (split layout) ── */
@@ -768,12 +811,6 @@ app.get('/', async (c) => {
               height: auto;
             }
 
-            .directory-ring-circle {
-              fill: none;
-              stroke: var(--border);
-              stroke-width: 1;
-            }
-
             .ring-node {
               transition: opacity 0.2s;
             }
@@ -833,6 +870,19 @@ app.get('/', async (c) => {
             .ring-node.is-highlighted .ring-node-arc {
               opacity: 0.9;
               stroke-width: 3.5;
+            }
+
+            /* D3 ring background circle */
+            .ring-bg-circle {
+              fill: none;
+              stroke: var(--border);
+              stroke-width: 1;
+            }
+
+            /* List row highlight when hovering ring node */
+            .directory-row.is-hovered {
+              background: color-mix(in srgb, var(--fg) 4%, transparent);
+              padding-left: 0.25rem;
             }
 
             /* Compact stats */
@@ -1270,6 +1320,7 @@ app.get('/', async (c) => {
 
               .hero-top { font-size: 16vw; }
               .canada-flag { height: 23.04vw; }
+              .ring-widget { width: 46.08vw; }
               .hero-bottom-text { -webkit-text-stroke: 2px var(--accent); }
             }
           `)}</style>
@@ -1342,6 +1393,7 @@ app.get('/', async (c) => {
   const SCROLL_EASE = 0.12;
   const STEPS_PER_PANEL = 100;
   let scrollAccum = 0;
+  let prevActiveIdx = -1;
 
   ring.scrollLeft = currentPos;
 
@@ -1418,6 +1470,12 @@ app.get('/', async (c) => {
       dot.classList.toggle('is-active', i === activeIdx);
     });
 
+    // Notify panel change
+    if (activeIdx !== prevActiveIdx) {
+      prevActiveIdx = activeIdx;
+      ring.dispatchEvent(new CustomEvent('panelchange', { detail: { index: activeIdx } }));
+    }
+
     rafId = requestAnimationFrame(tick);
   }
 
@@ -1442,6 +1500,142 @@ app.get('/', async (c) => {
     targetPos = currentPos;
     ring.scrollLeft = currentPos;
   });
+})();
+</script>`)}
+
+          {raw(`<script>
+// ── Site preview (Explore panel) ──
+(function() {
+  var MEMBERS = ${previewMembers};
+  var panel = document.getElementById('preview-panel');
+  if (!panel || !MEMBERS.length) return;
+
+  var iframeWrap = document.getElementById('preview-iframe-wrap');
+  var skeleton = document.getElementById('preview-skeleton');
+  var skeletonName = document.getElementById('preview-skeleton-name');
+  var fallbackEl = document.getElementById('preview-fallback');
+  var fallbackName = document.getElementById('preview-fallback-name');
+  var fallbackMeta = document.getElementById('preview-fallback-meta');
+  var fallbackLink = document.getElementById('preview-fallback-link');
+  var nameEl = document.getElementById('preview-name');
+  var cityEl = document.getElementById('preview-city');
+  var openEl = document.getElementById('preview-open');
+  var prevBtn = document.getElementById('preview-prev');
+  var nextBtn = document.getElementById('preview-next');
+
+  var currentIdx = Math.floor(Math.random() * MEMBERS.length);
+  var currentIframe = null;
+  var loadTimer = null;
+  var isActive = false;
+
+  function updateControls(idx) {
+    var m = MEMBERS[idx];
+    nameEl.textContent = m.name;
+    cityEl.textContent = m.city;
+    openEl.href = m.url;
+  }
+
+  function destroyPreview() {
+    if (loadTimer) { clearTimeout(loadTimer); loadTimer = null; }
+    if (currentIframe) { currentIframe.remove(); currentIframe = null; }
+    fallbackEl.style.display = 'none';
+    skeleton.style.display = 'flex';
+  }
+
+  function showFallback(idx) {
+    var m = MEMBERS[idx];
+    skeleton.style.display = 'none';
+    if (currentIframe) { currentIframe.remove(); currentIframe = null; }
+    fallbackName.textContent = m.name;
+    fallbackMeta.textContent = (m.city ? m.city + ' \u00b7 ' : '') + m.type;
+    fallbackLink.href = m.url;
+    fallbackEl.style.display = 'flex';
+  }
+
+  function loadPreview(idx) {
+    destroyPreview();
+    var m = MEMBERS[idx];
+    updateControls(idx);
+    skeletonName.textContent = m.name;
+
+    var iframe = document.createElement('iframe');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
+    iframe.setAttribute('referrerpolicy', 'no-referrer');
+    iframe.setAttribute('title', m.name + ' website');
+    currentIframe = iframe;
+
+    loadTimer = setTimeout(function() {
+      if (currentIframe === iframe) showFallback(idx);
+    }, 5000);
+
+    iframe.addEventListener('load', function() {
+      if (currentIframe !== iframe) return;
+      clearTimeout(loadTimer);
+      loadTimer = null;
+
+      try {
+        iframe.contentWindow.location.href;
+        showFallback(idx);
+      } catch(e) {
+        skeleton.style.display = 'none';
+        iframe.classList.add('is-loaded');
+      }
+    });
+
+    iframe.addEventListener('error', function() {
+      if (currentIframe === iframe) {
+        clearTimeout(loadTimer);
+        showFallback(idx);
+      }
+    });
+
+    iframe.src = m.url;
+    iframeWrap.appendChild(iframe);
+  }
+
+  prevBtn.addEventListener('click', function() {
+    currentIdx = (currentIdx - 1 + MEMBERS.length) % MEMBERS.length;
+    if (isActive) loadPreview(currentIdx);
+  });
+
+  nextBtn.addEventListener('click', function() {
+    currentIdx = (currentIdx + 1) % MEMBERS.length;
+    if (isActive) loadPreview(currentIdx);
+  });
+
+  // Desktop: listen for panelchange events from scroll handler
+  var EXPLORE_INDEX = 3;
+  var ringEl = document.getElementById('ring');
+
+  ringEl.addEventListener('panelchange', function(e) {
+    var idx = e.detail.index;
+    if (idx === EXPLORE_INDEX && !isActive) {
+      isActive = true;
+      loadPreview(currentIdx);
+    } else if (idx !== EXPLORE_INDEX && isActive) {
+      isActive = false;
+      destroyPreview();
+    }
+  });
+
+  // Mobile: use IntersectionObserver (scroll handler doesn't run on mobile)
+  if (window.matchMedia('(max-width: 767px)').matches) {
+    var panelEl = panel.closest('.panel');
+    if (panelEl && 'IntersectionObserver' in window) {
+      var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting && !isActive) {
+            isActive = true;
+            loadPreview(currentIdx);
+          } else if (!entry.isIntersecting && isActive) {
+            isActive = false;
+            destroyPreview();
+          }
+        });
+      }, { threshold: 0.5 });
+      observer.observe(panelEl);
+    }
+  }
 })();
 </script>`)}
 
