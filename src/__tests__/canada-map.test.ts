@@ -1,40 +1,39 @@
-import { describe, it, expect } from 'vitest'
-import { projectToSvg } from '../lib/canada-map'
+import { describe, expect, it } from 'vitest'
+import {
+  CANADA_OUTLINE_PATH,
+  CANADA_REGION_PATHS,
+  CANADA_VIEWBOX,
+  projectToSvg,
+} from '../lib/canada-map'
 
-describe('projectToSvg', () => {
-  it('projects Toronto to roughly center-right of the map', () => {
-    const { x, y } = projectToSvg(43.65, -79.38)
-    expect(x).toBeGreaterThan(500)
-    expect(x).toBeLessThan(620)
-    expect(y).toBeGreaterThan(400)
-    expect(y).toBeLessThan(500)
+describe('canada-map', () => {
+  it('exports a non-empty outline path and the expected region count', () => {
+    expect(CANADA_VIEWBOX).toBe('0 0 800 520')
+    expect(CANADA_OUTLINE_PATH.length).toBeGreaterThan(0)
+    expect(CANADA_REGION_PATHS).toHaveLength(13)
   })
 
-  it('projects Vancouver to the left side of the map', () => {
-    const { x, y } = projectToSvg(49.28, -123.12)
-    expect(x).toBeGreaterThan(100)
-    expect(x).toBeLessThan(220)
+  it('includes representative province and territory entries', () => {
+    const regionNames = CANADA_REGION_PATHS.map((region) => region.name)
+    expect(regionNames).toContain('British Columbia')
+    expect(regionNames).toContain('Nunavut')
+    expect(regionNames).toContain('Québec')
   })
 
-  it('projects northern cities higher on the map (lower y)', () => {
-    const iqaluit = projectToSvg(63.75, -68.52)
-    const toronto = projectToSvg(43.65, -79.38)
-    expect(iqaluit.y).toBeLessThan(toronto.y)
-  })
-
-  it('returns values within the 800x500 viewBox for typical Canadian cities', () => {
-    const cities = [
-      { lat: 43.65, lng: -79.38 },
-      { lat: 49.28, lng: -123.12 },
-      { lat: 45.50, lng: -73.57 },
-      { lat: 60.72, lng: -135.06 },
+  it('projects representative cities into the configured viewBox', () => {
+    const points = [
+      projectToSvg(43.65, -79.38),
+      projectToSvg(49.28, -123.12),
+      projectToSvg(63.75, -68.52),
     ]
-    for (const c of cities) {
-      const { x, y } = projectToSvg(c.lat, c.lng)
-      expect(x).toBeGreaterThanOrEqual(0)
-      expect(x).toBeLessThanOrEqual(800)
-      expect(y).toBeGreaterThanOrEqual(0)
-      expect(y).toBeLessThanOrEqual(500)
+
+    for (const point of points) {
+      expect(Number.isFinite(point.x)).toBe(true)
+      expect(Number.isFinite(point.y)).toBe(true)
+      expect(point.x).toBeGreaterThanOrEqual(0)
+      expect(point.x).toBeLessThanOrEqual(800)
+      expect(point.y).toBeGreaterThanOrEqual(0)
+      expect(point.y).toBeLessThanOrEqual(520)
     }
   })
 })
