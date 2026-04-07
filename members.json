@@ -1,8 +1,9 @@
-[{
-  "slug": "timothy-khan",
-  "name": "Timothy Khan",
-  "url": "https://timothyk.dev",
-  "city": "Toronto",
-  "type": "developer",
-  "active": true
-}]
+[
+  {
+    "slug": "stanley",
+    "name": "Stanley Pang",
+    "url": "https://stanleyp.dev",
+    "city": "Toronto",
+    "active": true
+  }
+]
