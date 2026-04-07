@@ -1,1 +1,8 @@
-[]
+{
+  "slug": "timothy-khan",
+  "name": "Timothy Khan",
+  "url": "https://timothyk.dev",
+  "city": "Toronto",
+  "type": "developer",
+  "active": true
+}
