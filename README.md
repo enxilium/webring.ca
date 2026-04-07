@@ -12,27 +12,28 @@ A webring for Canadian builders — developers, designers, and founders sharing 
      "name": "Your Name",
      "url": "https://yoursite.ca",
      "city": "Toronto",
-     "type": "developer",
      "active": true
    }
    ```
-   Append your entry to the **bottom** of the array. `type` is one of: `developer`, `designer`, `founder`, `other`.
+   Append your entry to the **bottom** of the array.
 3. Open a pull request — CI will verify your site and we'll merge you in
 
 **Requirements:** A personal site or project by a Canadian builder, with real content and the webring widget installed.
 
 ## Add the widget
 
+The widget renders a minimal `← 🍁 →` nav that links your site into the ring.
+
 ### Option 1: Script embed (recommended)
 
-Works with all frameworks and is always detectable by our health check. This is the recommended method.
+Copy and paste into your site:
 
 ```html
 <div data-webring="ca" data-member="your-slug"></div>
 <script src="https://webring.ca/embed.js" defer></script>
 ```
 
-Add `data-theme="dark"` to the div if your site has a dark background.
+Replace `your-slug` with the slug from your `members.json` entry.
 
 If your site is a single-page app, always use this option. The plain HTML option may not be detectable by our health check on client-rendered sites.
 
@@ -41,22 +42,37 @@ If your site is a single-page app, always use this option. The plain HTML option
 For simple static sites that don't load external scripts:
 
 ```html
-<a href="https://webring.ca/prev/your-slug">&larr; prev</a>
-<a href="https://webring.ca/random">🍁 webring.ca</a>
-<a href="https://webring.ca/next/your-slug">next &rarr;</a>
+<a href="https://webring.ca/prev/your-slug">←</a>
+<a href="https://webring.ca">🍁</a>
+<a href="https://webring.ca/next/your-slug">→</a>
+```
+
+### Customization
+
+Style the widget with CSS variables on the container div:
+
+| Variable | Default | Description |
+|---|---|---|
+| `--webring-color` | `inherit` | Arrow and leaf color |
+| `--webring-accent` | `#AF272F` | Hover color |
+
+Example:
+
+```html
+<div data-webring="ca" data-member="your-slug"
+     style="--webring-color: #666; --webring-accent: #e63946;"></div>
+<script src="https://webring.ca/embed.js" defer></script>
 ```
 
 ### Framework examples
 
 The script embed works with any framework. Place the snippet in your site's shared layout:
 
-- **Next.js** — `app/layout.tsx` (in the `<body>`, before the closing tag)
-- **Astro** — `src/layouts/Layout.astro` (in the `<body>`)
-- **SvelteKit** — `src/app.html` (in the `<body>`)
-- **Hugo** — `layouts/partials/footer.html`
-- **Jekyll** — `_includes/footer.html`
-
-These are the most common setups. The script embed works with any framework that renders HTML.
+- **Next.js** -- `app/layout.tsx` (in the `<body>`, before the closing tag)
+- **Astro** -- `src/layouts/Layout.astro` (in the `<body>`)
+- **SvelteKit** -- `src/app.html` (in the `<body>`)
+- **Hugo** -- `layouts/partials/footer.html`
+- **Jekyll** -- `_includes/footer.html`
 
 ## API
 
