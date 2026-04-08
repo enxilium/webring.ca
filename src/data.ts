@@ -21,21 +21,8 @@ export async function getActiveMembers(kv: KVNamespace): Promise<Member[]> {
 }
 
 export async function getEffectiveRingOrder(kv: KVNamespace): Promise<string[]> {
-  const [order, activeMembers] = await Promise.all([
-    getRingOrder(kv),
-    getActiveMembers(kv),
-  ])
-
-  const activeSlugs = activeMembers.map((m) => m.slug)
-  if (activeSlugs.length === 0) {
-    return []
-  }
-
-  const activeSlugSet = new Set(activeSlugs)
-  const normalizedOrder = order.filter((slug): slug is string => typeof slug === 'string' && activeSlugSet.has(slug))
-  const missingSlugs = activeSlugs.filter((slug) => !normalizedOrder.includes(slug))
-
-  return [...normalizedOrder, ...missingSlugs]
+  const { order } = await getEffectiveRingOrderWithMembers(kv)
+  return order
 }
 
 export async function getEffectiveRingOrderWithMembers(kv: KVNamespace): Promise<{ order: string[]; members: Member[] }> {
