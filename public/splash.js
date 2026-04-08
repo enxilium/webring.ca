@@ -54,18 +54,20 @@
   layoutPanels();
   renderTrack();
 
-  function setWillChange(value) {
-    for (var i = 0; i < panels.length; i++) {
-      panels[i].style.willChange = value;
-    }
+  // ── Tick ──
+  var rafId = 0;
+
+  function startTick() {
+    if (!rafId) rafId = requestAnimationFrame(tick);
   }
 
   function unsettle() {
     if (isSettled) {
       isSettled = false;
-      setWillChange('transform');
+      track.style.willChange = 'transform';
       ring.dispatchEvent(new CustomEvent('panelunsettle'));
     }
+    startTick();
   }
 
   // ── Wheel (desktop) ──
@@ -181,6 +183,19 @@
     });
   });
 
+  // ── Snap-to (programmatic) ──
+  ring.addEventListener('snapto', function(e) {
+    var idx = e.detail.index;
+    var target = idx * ANGLE_STEP;
+    var norm = ((currentAngle % 360) + 360) % 360;
+    var diff = target - norm;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    targetAngle = currentAngle + diff;
+    rawTarget = targetAngle;
+    unsettle();
+  });
+
   // ── Keyboard ──
   document.addEventListener('keydown', function(e) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
@@ -198,18 +213,19 @@
     }
   });
 
-  // ── Tick ──
-  var rafId = 0;
-
   function tick() {
-    var diff = targetAngle - currentAngle;
-    if (Math.abs(diff) > 0.05) {
-      currentAngle += diff * SCROLL_EASE;
-    } else {
-      currentAngle = targetAngle;
-    }
+    rafId = 0;
 
-    renderTrack();
+    var diff = targetAngle - currentAngle;
+    var moving = Math.abs(diff) > 0.05;
+
+    if (moving) {
+      currentAngle += diff * SCROLL_EASE;
+      renderTrack();
+    } else if (currentAngle !== targetAngle) {
+      currentAngle = targetAngle;
+      renderTrack();
+    }
 
     // Active panel index
     var norm = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
@@ -221,22 +237,33 @@
       ring.dispatchEvent(new CustomEvent('panelchange', { detail: { index: norm } }));
     }
 
-    // Dispatch settle event when animation finishes
+    // Stop loop when settled -- restarts on next input via startTick()
     if (!isSettled && currentAngle === targetAngle) {
       isSettled = true;
-      setWillChange('auto');
+      track.style.willChange = 'auto';
       ring.dispatchEvent(new CustomEvent('panelsettle', { detail: { index: norm } }));
+      return;
     }
 
-    rafId = requestAnimationFrame(tick);
+    if (moving || currentAngle !== targetAngle) {
+      rafId = requestAnimationFrame(tick);
+    }
   }
 
-  rafId = requestAnimationFrame(tick);
+  // Initial render is already done; start loop only on first input
+  // Set initial dot state
+  var initIdx = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
+  prevActiveIdx = initIdx;
+  dots.forEach(function(dot, i) { dot.classList.toggle('is-active', i === initIdx); });
+  ring.dispatchEvent(new CustomEvent('panelsettle', { detail: { index: initIdx } }));
 
   // ── Pause when hidden ──
   document.addEventListener('visibilitychange', function() {
-    if (document.hidden) cancelAnimationFrame(rafId);
-    else rafId = requestAnimationFrame(tick);
+    if (document.hidden) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    } else if (!isSettled) {
+      startTick();
+    }
   });
 
   // ── Resize ──
