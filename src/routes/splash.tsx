@@ -41,7 +41,18 @@ app.get('/', async (c) => {
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <title>webring.ca</title>
-          <meta name="description" content="A webring for Canadian builders — developers, designers, and founders." />
+          <meta name="description" content="A webring for Canadian builders: developers, designers, and founders." />
+          <link rel="canonical" href="https://webring.ca/" />
+          <meta name="theme-color" content="#AF272F" />
+          <meta property="og:type" content="website" />
+          <meta property="og:title" content="webring.ca" />
+          <meta property="og:description" content="A webring for Canadian builders: developers, designers, and founders." />
+          <meta property="og:url" content="https://webring.ca/" />
+          <meta property="og:image" content="https://webring.ca/og-image.png" />
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+          <meta property="og:locale" content="en_CA" />
+          <meta name="twitter:card" content="summary_large_image" />
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
