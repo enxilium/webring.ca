@@ -158,11 +158,24 @@
       if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; }
       currentAngle = pendingAngle;
 
-      // Apply momentum then snap to nearest panel
-      var momentumAngle = velocity * 150 * (ANGLE_STEP / panelDim);
-      rawTarget = currentAngle + momentumAngle;
-      targetAngle = snapAngle(rawTarget);
+      var nearest = snapAngle(currentAngle);
+      var SWIPE_THRESHOLD = 0.15; // min velocity to trigger directional snap
+
+      if (Math.abs(velocity) > SWIPE_THRESHOLD) {
+        // Swipe detected: always advance at least one panel in swipe direction
+        var dir = velocity > 0 ? 1 : -1;
+        var next = nearest + dir * ANGLE_STEP;
+        // If we already passed the next panel, snap to the one after
+        if (dir > 0 && next < currentAngle) next += ANGLE_STEP;
+        if (dir < 0 && next > currentAngle) next -= ANGLE_STEP;
+        targetAngle = next;
+      } else {
+        // No significant swipe: snap to nearest panel
+        targetAngle = nearest;
+      }
+
       rawTarget = targetAngle;
+      unsettle();
     }
     ring.addEventListener('touchend', onTouchEnd, { passive: true });
     ring.addEventListener('touchcancel', onTouchEnd, { passive: true });
