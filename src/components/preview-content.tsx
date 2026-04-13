@@ -17,6 +17,11 @@ export function SitePreviewContent() {
         <span class="preview-overlay-hint">Click to interact</span>
       </div>
 
+      {/* Exit pill — persistent bar at top when iframe is interactive */}
+      <button type="button" class="preview-exit-pill" id="preview-exit" aria-label="Exit interaction">
+        {raw('&times;')} Unfocus
+      </button>
+
       {/* Fallback card — shown when iframe is blocked */}
       <div class="preview-fallback" id="preview-fallback" style="display: none;">
         <div class="preview-fallback-card">

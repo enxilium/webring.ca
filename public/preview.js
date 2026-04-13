@@ -51,6 +51,10 @@
     skeleton.style.display = 'flex';
     overlay.classList.remove('is-dismissed', 'is-fading');
     overlay.classList.add('is-loading');
+    var eb = document.getElementById('preview-exit');
+    if (eb) eb.classList.remove('is-visible');
+    var r = document.getElementById('ring');
+    if (r) r.classList.remove('is-iframe-active');
   }
 
   function showFallback(idx) {
@@ -126,6 +130,10 @@
   // Click overlay to dismiss and interact with iframe
   var pendingDismiss = false;
   overlay.addEventListener('click', function(e) {
+    // Guard: only handle when Explore panel is active. Chrome's 3D hit-testing
+    // can occasionally dispatch clicks to elements in non-active panels, so we
+    // must check isActive before acting (or dispatching snapto).
+    if (!isActive) return;
     e.stopPropagation();
     if (overlay.classList.contains('is-dismissed')) return;
 
@@ -140,6 +148,8 @@
     overlay.classList.toggle('is-ready', isSettled);
   }
 
+  var exitBtn = document.getElementById('preview-exit');
+
   function restoreOverlay() {
     if (!overlay.classList.contains('is-dismissed')) return;
     overlay.classList.remove('is-dismissed', 'is-fading');
@@ -147,7 +157,32 @@
       currentIframe.classList.remove('is-interactive');
       currentIframe.blur();
     }
+    if (exitBtn) exitBtn.classList.remove('is-visible');
+    var r = document.getElementById('ring');
+    if (r) r.classList.remove('is-iframe-active');
     window.focus();
+  }
+
+  // Exit pill: restore overlay when tapped
+  if (exitBtn) {
+    var exitTouchStarted = false;
+    exitBtn.addEventListener('touchstart', function(e) {
+      e.stopPropagation();
+      exitTouchStarted = true;
+    }, { passive: true });
+    exitBtn.addEventListener('touchend', function(e) {
+      e.stopPropagation();
+      if (exitTouchStarted) {
+        exitTouchStarted = false;
+        e.preventDefault(); // prevent delayed click
+        restoreOverlay();
+      }
+    });
+    // Desktop fallback
+    exitBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      restoreOverlay();
+    });
   }
 
   // Escape restores the overlay when parent has focus
@@ -201,27 +236,27 @@
     });
   }
 
-  if (!isMobilePreview) {
-    // Re-enable overlay when scrolling starts (prevent iframe from capturing scroll)
-    ringEl.addEventListener('panelunsettle', function() {
-      isSettled = false;
-      restoreOverlay();
-      updateOverlayState();
-    });
+  // Re-enable overlay when scrolling starts (prevent iframe from capturing scroll)
+  ringEl.addEventListener('panelunsettle', function() {
+    isSettled = false;
+    restoreOverlay();
+    updateOverlayState();
+  });
 
-    // Allow interaction only when ring settles on this panel
-    ringEl.addEventListener('panelsettle', function(e) {
-      if (e.detail.index === EXPLORE_INDEX && isActive) {
-        isSettled = true;
-        updateOverlayState();
-        if (pendingDismiss) {
-          pendingDismiss = false;
-          overlay.classList.add('is-dismissed');
-          if (currentIframe) currentIframe.classList.add('is-interactive');
-        }
+  // Allow interaction only when ring settles on this panel
+  ringEl.addEventListener('panelsettle', function(e) {
+    if (e.detail.index === EXPLORE_INDEX && isActive) {
+      isSettled = true;
+      updateOverlayState();
+      if (pendingDismiss) {
+        pendingDismiss = false;
+        overlay.classList.add('is-dismissed');
+        if (currentIframe) currentIframe.classList.add('is-interactive');
+        if (exitBtn) exitBtn.classList.add('is-visible');
+        ringEl.classList.add('is-iframe-active');
       }
-    });
-  }
+    }
+  });
 
   // Mobile: use IntersectionObserver instead of panelchange events
   if (isMobilePreview) {

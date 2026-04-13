@@ -98,6 +98,18 @@ app.get('/', async (c) => {
               </section>
             </div>
           </div>
+          {/* Transparent click overlay for the Join button, outside #ring's perspective
+              context so Chrome uses 2D hit-testing (immune to preserve-3d routing bugs).
+              Positioned over the real button on panelsettle, hidden on panelunsettle. */}
+          <a
+            id="join-link-overlay"
+            href="https://github.com/stanleypangg/webring.ca#join-the-ring"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-hidden="true"
+            tabindex={-1}
+            style="position:fixed;display:none;z-index:150;cursor:pointer;"
+          ></a>
           {/* Dots live outside #ring to escape its perspective stacking context,
               ensuring they're always above the 3D-transformed panels and
               isolating them from the carousel's touch/wheel event handlers. */}

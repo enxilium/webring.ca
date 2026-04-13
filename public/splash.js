@@ -24,8 +24,7 @@
     rawTarget = currentAngle;
   }
   // Tuning -- instant snap when user prefers reduced motion
-  var SCROLL_EASE = reducedMotion ? 1.0 : 0.18;
-  var STEPS_PER_PANEL = 20;
+  var SCROLL_EASE = reducedMotion ? 1.0 : 0.22;
   var prevActiveIdx = -1;
   var isSettled = true;
 
@@ -37,11 +36,6 @@
 
   function snapAngle(a) {
     return Math.round(a / ANGLE_STEP) * ANGLE_STEP;
-  }
-
-  function quantize(a) {
-    var step = ANGLE_STEP / STEPS_PER_PANEL;
-    return Math.round(a / step) * step;
   }
 
   // Place each panel on the cylinder surface
@@ -62,6 +56,17 @@
 
   layoutPanels();
   renderTrack();
+
+  // ── Offscreen animation pause ──
+  function updateOffscreen(activeIdx) {
+    for (var p = 0; p < panels.length; p++) {
+      var near = p === activeIdx
+        || p === (activeIdx + 1) % PANEL_COUNT
+        || p === (activeIdx - 1 + PANEL_COUNT) % PANEL_COUNT;
+      if (near) panels[p].removeAttribute('data-offscreen');
+      else panels[p].setAttribute('data-offscreen', '');
+    }
+  }
 
   // ── Tick ──
   var rafId = 0;
@@ -89,12 +94,7 @@
       if (e.deltaMode === 2) delta *= panelDim;
 
       rawTarget += (delta / panelDim) * ANGLE_STEP;
-      var step = ANGLE_STEP / STEPS_PER_PANEL;
-      var snapped = Math.round(rawTarget / step) * step;
-      if (snapped !== targetAngle) {
-        rawTarget = snapped;
-        targetAngle = snapped;
-      }
+      targetAngle = rawTarget;
 
       unsettle();
 
@@ -116,6 +116,11 @@
     var directionLocked = false;
 
     ring.addEventListener('touchstart', function(e) {
+      // When iframe is interactive, don't capture touches for carousel rotation
+      if (ring.classList.contains('is-iframe-active')) {
+        isDragging = false;
+        return;
+      }
       isDragging = true;
       isHorizontalScroll = false;
       directionLocked = false;
@@ -177,13 +182,14 @@
 
           unsettle();
 
-          // Update active dot (lightweight -- just class toggle)
+          // Update active dot and offscreen state
           var norm = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
           if (norm !== prevActiveIdx) {
             prevActiveIdx = norm;
             dots.forEach(function(dot, i) {
               dot.classList.toggle('is-active', i === norm);
             });
+            updateOffscreen(norm);
             ring.dispatchEvent(new CustomEvent('panelchange', { detail: { index: norm } }));
           }
         });
@@ -296,6 +302,7 @@
       dots.forEach(function(dot, i) {
         dot.classList.toggle('is-active', i === norm);
       });
+      updateOffscreen(norm);
       ring.dispatchEvent(new CustomEvent('panelchange', { detail: { index: norm } }));
     }
 
@@ -317,6 +324,7 @@
   var initIdx = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
   prevActiveIdx = initIdx;
   dots.forEach(function(dot, i) { dot.classList.toggle('is-active', i === initIdx); });
+  updateOffscreen(initIdx);
   ring.dispatchEvent(new CustomEvent('panelsettle', { detail: { index: initIdx } }));
 
   // ── Pause when hidden ──
@@ -343,6 +351,30 @@
     layoutPanels();
     renderTrack();
   });
+
+  // ── Join button click overlay ──
+  // Chrome's preserve-3d hit-testing can route clicks to the rotated Explore
+  // panel instead of the Join button. The fix: a transparent <a> element
+  // OUTSIDE the ring's perspective context (so Chrome uses 2D hit-testing).
+  // It sits invisibly over the real button on settle and hides on unsettle.
+  var joinOverlay = document.getElementById('join-link-overlay');
+  var JOIN_IDX = PANEL_COUNT - 1;
+  if (joinOverlay) {
+    ring.addEventListener('panelsettle', function(e) {
+      if (e.detail.index !== JOIN_IDX) return;
+      var btn = document.querySelector('.panel[data-index="' + JOIN_IDX + '"] .join-button');
+      if (!btn) return;
+      var r = btn.getBoundingClientRect();
+      joinOverlay.style.top = r.top + 'px';
+      joinOverlay.style.left = r.left + 'px';
+      joinOverlay.style.width = r.width + 'px';
+      joinOverlay.style.height = r.height + 'px';
+      joinOverlay.style.display = 'block';
+    });
+    ring.addEventListener('panelunsettle', function() {
+      joinOverlay.style.display = 'none';
+    });
+  }
 })();
 
 /* ── Webring line animation ── */

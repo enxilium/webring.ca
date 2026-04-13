@@ -295,6 +295,10 @@ body {
   .anim-line.is-marching { animation: none; }
 }
 
+/* Pause infinite animations on offscreen panels */
+.panel[data-offscreen] .anim-line.is-marching { animation-play-state: paused; }
+.panel[data-offscreen] .preview-skeleton-shimmer { animation-play-state: paused; }
+
 
 /* ── Panel 2: About ── */
 .about-inner {
@@ -1027,10 +1031,11 @@ body.has-ring-fullscreen {
   position: absolute;
   inset: 0 0 calc(28px + 1.2rem) 0;
   z-index: 1;
+  overflow: hidden;
 }
 
 .preview-iframe-wrap iframe {
-  width: 100%;
+  width: calc(100% + 20px);
   height: 100%;
   border: none;
   opacity: 0;
@@ -1098,6 +1103,46 @@ body.has-ring-fullscreen {
   .preview-overlay:not(.is-fading):not(.is-dismissed):not(.is-loading) .preview-overlay-hint {
     opacity: 1;
   }
+}
+
+/* Exit pill — persistent top bar when iframe is interactive */
+.preview-exit-pill {
+  display: flex;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  cursor: pointer;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, color 0.2s;
+}
+
+.preview-exit-pill.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.preview-exit-pill:hover,
+.preview-exit-pill:focus-visible {
+  color: var(--fg);
 }
 
 .preview-skeleton {
@@ -1201,8 +1246,8 @@ body.has-ring-fullscreen {
   gap: 0.75rem;
   padding: 0.6rem 1.25rem;
   background: color-mix(in srgb, var(--bg) 55%, transparent);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
   box-shadow: 0 -4px 16px color-mix(in srgb, var(--bg) 30%, transparent);
 }
@@ -1247,7 +1292,7 @@ body.has-ring-fullscreen {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 0 6px var(--bg), 0 0 12px var(--bg);
+  text-shadow: 0 0 8px var(--bg);
 }
 
 .preview-member-sep {
@@ -1264,7 +1309,7 @@ body.has-ring-fullscreen {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 0 6px var(--bg), 0 0 12px var(--bg);
+  text-shadow: 0 0 8px var(--bg);
 }
 
 .preview-member-url:hover {
@@ -1282,7 +1327,7 @@ body.has-ring-fullscreen {
   color: var(--fg-muted);
   white-space: nowrap;
   flex-shrink: 0;
-  text-shadow: 0 0 6px var(--bg), 0 0 12px var(--bg);
+  text-shadow: 0 0 8px var(--bg);
 }
 
 .preview-open {
@@ -1504,6 +1549,7 @@ body.has-ring-fullscreen {
 /* ── Mobile: vertical cylinder ── */
 @media (max-width: 767px) {
   .ring { perspective: 1600px; -webkit-perspective: 1600px; touch-action: pan-x; }
+  .ring.is-iframe-active { touch-action: auto; }
 
   /* Dots: vertical strip on right edge */
   .ring-dots {
