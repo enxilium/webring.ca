@@ -118,6 +118,7 @@ body {
   justify-content: space-between;
   position: relative;
   user-select: none;
+  container-type: inline-size;
 }
 
 .poster-text {
@@ -136,7 +137,7 @@ body {
 }
 
 .hero-top {
-  font-size: clamp(4rem, 11vw, 10rem);
+  font-size: 12cqw;
   color: var(--fg);
   display: flex;
   flex-direction: column;
@@ -161,7 +162,7 @@ body {
 }
 
 .canada-flag {
-  height: clamp(5.76rem, 15.84vw, 14.4rem);
+  height: 17.28cqw;
   width: auto;
   flex-shrink: 0;
 }
@@ -989,14 +990,14 @@ body.has-ring-fullscreen {
 
 /* ── Tablet: constrain fonts ── */
 @media (min-width: 768px) and (max-width: 1024px) {
-  .hero-top { font-size: clamp(4rem, 9vw, 7rem); }
+  .hero-top { font-size: 11cqw; }
   .hero-bottom-text { font-size: 11cqw; }
   .about-headline { font-size: clamp(3rem, 6vw, 5rem); }
   .about-inner { gap: 2rem; }
   .join-headline { font-size: clamp(4rem, 9vw, 7rem); }
   .join-count-number { font-size: clamp(2rem, 6vw, 5rem); }
   .join-inner { width: calc(100% - 3rem); height: calc(100% - 3rem); }
-  .canada-flag { height: 12vw; }
+  .canada-flag { height: 15.84cqw; }
   .splash-map { width: 85vw; }
 
   .directory-inner { padding: 2rem 2rem; gap: 1.5rem; }

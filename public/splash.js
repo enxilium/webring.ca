@@ -89,7 +89,12 @@
       if (e.deltaMode === 2) delta *= panelDim;
 
       rawTarget += (delta / panelDim) * ANGLE_STEP;
-      targetAngle = quantize(rawTarget);
+      var step = ANGLE_STEP / STEPS_PER_PANEL;
+      var snapped = Math.round(rawTarget / step) * step;
+      if (snapped !== targetAngle) {
+        rawTarget = snapped;
+        targetAngle = snapped;
+      }
 
       unsettle();
 
