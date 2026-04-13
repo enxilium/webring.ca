@@ -19,17 +19,23 @@ app.get('/', async (c) => {
     getActiveMembers(c.env.WEBRING),
     getEffectiveRingOrder(c.env.WEBRING),
   ])
-  const ringEntrySlug = ringOrder[0] ?? active[0]?.slug ?? ''
+  const memberBySlug = new Map(active.map(m => [m.slug, m]))
+  const ordered = [
+    ...ringOrder.filter(s => memberBySlug.has(s)).map(s => memberBySlug.get(s)!),
+    ...active.filter(m => !ringOrder.includes(m.slug)),
+  ]
+
+  const ringEntrySlug = ringOrder[0] ?? ordered[0]?.slug ?? ''
 
   const healthStatuses = await Promise.all(
-    active.map((m) => getHealthStatus(c.env.WEBRING, m.slug))
+    ordered.map((m) => getHealthStatus(c.env.WEBRING, m.slug))
   )
 
   const dots = PANEL_NAMES.map((name, i) =>
     `<button class="ring-dot${i === 0 ? ' is-active' : ''}" data-dot="${i}" aria-label="Go to ${name}"></button>`
   ).join('')
 
-  const previewMembers = JSON.stringify(active.map((m, i) => ({
+  const previewMembers = JSON.stringify(ordered.map((m, i) => ({
     name: m.name, url: m.url, city: m.city || '', slug: m.slug,
     frameable: healthStatuses[i]?.frameable ?? true,
   })))
@@ -64,7 +70,7 @@ app.get('/', async (c) => {
             <div class="ring-track">
               {/* Clone of last panel (Join) for backward cycling */}
               <section class="panel panel--clone" aria-hidden="true">
-                <JoinContent memberCount={active.length} />
+                <JoinContent memberCount={ordered.length} />
               </section>
 
               {/* Panel 1: Splash */}
@@ -79,7 +85,7 @@ app.get('/', async (c) => {
 
               {/* Panel 3: Directory */}
               <section class="panel" data-index="2" aria-label="Directory section">
-                <DirectoryContent active={active} />
+                <DirectoryContent active={ordered} />
               </section>
 
               {/* Panel 4: Explore */}
@@ -89,7 +95,7 @@ app.get('/', async (c) => {
 
               {/* Panel 5: Join CTA */}
               <section class="panel" data-index="4" aria-label="Join section">
-                <JoinContent memberCount={active.length} />
+                <JoinContent memberCount={ordered.length} />
               </section>
 
               {/* Clone of first panel (Splash) for forward cycling */}
