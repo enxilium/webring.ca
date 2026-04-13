@@ -682,6 +682,21 @@ function init() {
 
   cardPrevBtn?.addEventListener('click', () => scrollToCardIndex(mobileCardIndex - 1))
   cardNextBtn?.addEventListener('click', () => scrollToCardIndex(mobileCardIndex + 1))
+
+  // Sync arrow state when user swipes the card strip manually
+  if (directoryListEl) {
+    let scrollTimer = 0
+    directoryListEl.addEventListener('scroll', () => {
+      if (scrollTimer) cancelAnimationFrame(scrollTimer)
+      scrollTimer = requestAnimationFrame(() => {
+        scrollTimer = 0
+        const cardWidth = 140
+        const gap = getCardGap()
+        mobileCardIndex = Math.round(directoryListEl!.scrollLeft / (cardWidth + gap))
+        updateCardArrows()
+      })
+    }, { passive: true })
+  }
   const headerEl = document.querySelector<HTMLElement>('.directory-header')
   const directoryInnerEl = directoryListEl?.closest<HTMLElement>('.directory-inner') ?? null
   const directoryListWrapEl = directoryListEl?.closest<HTMLElement>('.directory-list-wrap') ?? null
