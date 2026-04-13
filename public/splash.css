@@ -893,6 +893,31 @@ body.has-ring-fullscreen {
     cursor: pointer;
   }
 
+  /* Node tooltip (tap-to-visit CTA) */
+  .ring-node-tooltip-bg {
+    fill: var(--fg);
+    opacity: 0.92;
+  }
+
+  .ring-node-tooltip-name {
+    fill: var(--bg);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 8px;
+    font-weight: 600;
+  }
+
+  .ring-node-tooltip-visit-bg {
+    fill: var(--accent);
+  }
+
+  .ring-node-tooltip-visit-text {
+    fill: var(--fg-on-accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 6px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+
   .directory-search,
   .directory-search-input {
     pointer-events: auto;
@@ -1563,36 +1588,4 @@ body.has-ring-fullscreen {
   }
 }
 
-/* ── Mobile + reduced motion: flat fallback ── */
-@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
-  body { overflow: auto; height: auto; }
-
-  .ring {
-    position: static;
-    overflow: visible;
-    width: 100%;
-    height: auto;
-    perspective: none;
-  }
-
-  .ring-track {
-    display: flex;
-    flex-direction: column;
-    transform-style: flat;
-    -webkit-transform-style: flat;
-    transform: none;
-  }
-
-  .panel {
-    position: relative;
-    width: 100%;
-    height: auto;
-    min-height: 100vh;
-    backface-visibility: visible;
-    -webkit-backface-visibility: visible;
-    transform: none;
-    will-change: auto;
-  }
-
-  .ring-dots { display: none; }
-}
+/* Reduced motion: carousel JS handles instant transitions; no CSS flatten needed */

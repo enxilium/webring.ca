@@ -1,6 +1,6 @@
 (function() {
   var isMobile = window.matchMedia('(max-width: 767px)').matches;
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var ring = document.getElementById('ring');
   var track = ring.querySelector('.ring-track');
@@ -23,8 +23,8 @@
     targetAngle = currentAngle;
     rawTarget = currentAngle;
   }
-  // Tuning
-  var SCROLL_EASE = 0.18;
+  // Tuning -- instant snap when user prefers reduced motion
+  var SCROLL_EASE = reducedMotion ? 1.0 : 0.18;
   var STEPS_PER_PANEL = 20;
   var prevActiveIdx = -1;
   var isSettled = true;

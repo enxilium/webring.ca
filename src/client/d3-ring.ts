@@ -391,14 +391,100 @@ function init() {
     .attr('dy', nodeR + 10)
     .text(d => displayDomain(d.url))
 
-  // Touch: tap-to-select with visit affordance. Desktop: click-to-visit.
+  // Touch: tap-to-select with visit CTA. Desktop: click-to-visit.
   let selectedSlug: string | null = null
+
+  // Node tooltip (touch only) -- shows member name + visit button near tapped node
+  const tooltip = svg.append('g')
+    .attr('class', 'ring-node-tooltip')
+    .style('display', 'none')
+    .style('pointer-events', 'auto')
+
+  const tooltipBg = tooltip.append('rect')
+    .attr('class', 'ring-node-tooltip-bg')
+    .attr('rx', 6)
+    .attr('ry', 6)
+
+  const tooltipName = tooltip.append('text')
+    .attr('class', 'ring-node-tooltip-name')
+
+  const tooltipVisit = tooltip.append('a')
+    .attr('target', '_blank')
+    .attr('rel', 'noopener noreferrer')
+    .style('pointer-events', 'auto')
+
+  const tooltipVisitBg = tooltipVisit.append('rect')
+    .attr('class', 'ring-node-tooltip-visit-bg')
+    .attr('rx', 4)
+    .attr('ry', 4)
+
+  const tooltipVisitText = tooltipVisit.append('text')
+    .attr('class', 'ring-node-tooltip-visit-text')
+
+  function showTooltip(member: RingMember) {
+    if (member.x == null || member.y == null) return
+    const domain = displayDomain(member.url)
+    tooltipName.text(member.name)
+    tooltipVisitText.text(`Visit ${domain}`)
+    tooltipVisit.attr('href', member.url)
+
+    // Measure text widths via getBBox
+    const nameBox = (tooltipName.node() as SVGTextElement).getBBox()
+    const visitBox = (tooltipVisitText.node() as SVGTextElement).getBBox()
+    const padX = 10
+    const padY = 6
+    const gap = 6
+    const visitPadX = 8
+    const visitPadY = 4
+    const visitW = visitBox.width + visitPadX * 2
+    const visitH = visitBox.height + visitPadY * 2
+    const contentW = Math.max(nameBox.width, visitW) + padX * 2
+    const contentH = nameBox.height + gap + visitH + padY * 2
+
+    tooltipBg
+      .attr('width', contentW)
+      .attr('height', contentH)
+      .attr('x', -contentW / 2)
+      .attr('y', 0)
+
+    tooltipName
+      .attr('x', 0)
+      .attr('y', padY + nameBox.height * 0.8)
+      .attr('text-anchor', 'middle')
+
+    tooltipVisitBg
+      .attr('width', visitW)
+      .attr('height', visitH)
+      .attr('x', -visitW / 2)
+      .attr('y', padY + nameBox.height + gap)
+
+    tooltipVisitText
+      .attr('x', 0)
+      .attr('y', padY + nameBox.height + gap + visitPadY + visitBox.height * 0.8)
+      .attr('text-anchor', 'middle')
+
+    // Position above the node
+    const ty = member.y - nodeR - contentH - 6
+    tooltip
+      .attr('transform', `translate(${member.x},${ty})`)
+      .style('display', null)
+  }
+
+  function hideTooltip() {
+    tooltip.style('display', 'none')
+  }
 
   function selectMember(slug: string, scrollCard = true) {
     if (selectedSlug === slug) { deselectMember(); return }
     hideBloom()
     selectedSlug = slug
     showBloom(slug)
+
+    // Show tooltip near the node on touch devices
+    if (isTouchDevice) {
+      const member = members.find(m => m.slug === slug)
+      if (member) showTooltip(member)
+    }
 
     // Mark selected card
     const card = document.querySelector<HTMLElement>(`.directory-row[data-member="${slug}"]`)
@@ -414,6 +500,7 @@ function init() {
 
   function deselectMember() {
     selectedSlug = null
+    hideTooltip()
     document.querySelectorAll('.directory-row.is-selected').forEach(el => el.classList.remove('is-selected'))
     hideBloom()
     if (isTouchDevice && !isFullscreen) simulation.alphaTarget(driftAlpha).restart()
@@ -422,7 +509,7 @@ function init() {
   // Tap SVG background to deselect on touch
   if (isTouchDevice) {
     svgEl.addEventListener('click', (e) => {
-      if (!(e.target as Element).closest('.ring-node') && selectedSlug) {
+      if (!(e.target as Element).closest('.ring-node') && !(e.target as Element).closest('.ring-node-tooltip') && selectedSlug) {
         deselectMember()
       }
     })
