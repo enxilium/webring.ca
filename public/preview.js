@@ -180,45 +180,51 @@
     }
   });
 
-  // Desktop: listen for panelchange events from scroll handler
   var EXPLORE_INDEX = 3;
   var ringEl = document.getElementById('ring');
+  var isMobilePreview = window.matchMedia('(max-width: 767px)').matches;
 
-  ringEl.addEventListener('panelchange', function(e) {
-    if (e.detail.index === EXPLORE_INDEX && !isActive) {
-      isActive = true;
-      panel.style.opacity = '1';
-      loadPreview(currentIdx);
-    } else if (e.detail.index !== EXPLORE_INDEX && isActive) {
-      isActive = false;
-      isSettled = false;
-      panel.style.opacity = '0';
-      destroyPreview();
-    }
-  });
-
-  // Re-enable overlay when scrolling starts (prevent iframe from capturing scroll)
-  ringEl.addEventListener('panelunsettle', function() {
-    isSettled = false;
-    restoreOverlay();
-    updateOverlayState();
-  });
-
-  // Allow interaction only when ring settles on this panel
-  ringEl.addEventListener('panelsettle', function(e) {
-    if (e.detail.index === EXPLORE_INDEX && isActive) {
-      isSettled = true;
-      updateOverlayState();
-      if (pendingDismiss) {
-        pendingDismiss = false;
-        overlay.classList.add('is-dismissed');
-        if (currentIframe) currentIframe.classList.add('is-interactive');
+  // Desktop only: listen for panelchange events from scroll handler
+  // (mobile uses IntersectionObserver below to avoid double-fire flashing)
+  if (!isMobilePreview) {
+    ringEl.addEventListener('panelchange', function(e) {
+      if (e.detail.index === EXPLORE_INDEX && !isActive) {
+        isActive = true;
+        panel.style.opacity = '1';
+        loadPreview(currentIdx);
+      } else if (e.detail.index !== EXPLORE_INDEX && isActive) {
+        isActive = false;
+        isSettled = false;
+        panel.style.opacity = '0';
+        destroyPreview();
       }
-    }
-  });
+    });
+  }
 
-  // Mobile: use IntersectionObserver (scroll handler doesn't run on mobile)
-  if (window.matchMedia('(max-width: 767px)').matches) {
+  if (!isMobilePreview) {
+    // Re-enable overlay when scrolling starts (prevent iframe from capturing scroll)
+    ringEl.addEventListener('panelunsettle', function() {
+      isSettled = false;
+      restoreOverlay();
+      updateOverlayState();
+    });
+
+    // Allow interaction only when ring settles on this panel
+    ringEl.addEventListener('panelsettle', function(e) {
+      if (e.detail.index === EXPLORE_INDEX && isActive) {
+        isSettled = true;
+        updateOverlayState();
+        if (pendingDismiss) {
+          pendingDismiss = false;
+          overlay.classList.add('is-dismissed');
+          if (currentIframe) currentIframe.classList.add('is-interactive');
+        }
+      }
+    });
+  }
+
+  // Mobile: use IntersectionObserver instead of panelchange events
+  if (isMobilePreview) {
     var panelEl = panel.closest('.panel');
     if (panelEl && 'IntersectionObserver' in window) {
       var observer = new IntersectionObserver(function(entries) {

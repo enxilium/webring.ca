@@ -1,6 +1,6 @@
 (function() {
   var isMobile = window.matchMedia('(max-width: 767px)').matches;
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var ring = document.getElementById('ring');
   var track = ring.querySelector('.ring-track');
@@ -14,8 +14,17 @@
   var currentAngle = 0;
   var targetAngle = 0;
   var rawTarget = 0;
-  // Tuning
-  var SCROLL_EASE = 0.18;
+
+  // Restore panel position after resize-triggered reload
+  var _saved = parseInt(sessionStorage.getItem('wr-panel'), 10);
+  if (!isNaN(_saved) && _saved >= 0 && _saved < PANEL_COUNT) {
+    sessionStorage.removeItem('wr-panel');
+    currentAngle = _saved * ANGLE_STEP;
+    targetAngle = currentAngle;
+    rawTarget = currentAngle;
+  }
+  // Tuning -- instant snap when user prefers reduced motion
+  var SCROLL_EASE = reducedMotion ? 1.0 : 0.18;
   var STEPS_PER_PANEL = 20;
   var prevActiveIdx = -1;
   var isSettled = true;
@@ -80,7 +89,12 @@
       if (e.deltaMode === 2) delta *= panelDim;
 
       rawTarget += (delta / panelDim) * ANGLE_STEP;
-      targetAngle = quantize(rawTarget);
+      var step = ANGLE_STEP / STEPS_PER_PANEL;
+      var snapped = Math.round(rawTarget / step) * step;
+      if (snapped !== targetAngle) {
+        rawTarget = snapped;
+        targetAngle = snapped;
+      }
 
       unsettle();
 
@@ -90,6 +104,7 @@
   // ── Touch (mobile) ──
   if (isMobile) {
     var touchStartY = 0;
+    var touchStartX = 0;
     var touchStartAngle = 0;
     var lastTouchY = 0;
     var lastTouchTime = 0;
@@ -97,10 +112,15 @@
     var isDragging = false;
     var dragRaf = 0;
     var pendingAngle = 0;
+    var isHorizontalScroll = false;
+    var directionLocked = false;
 
     ring.addEventListener('touchstart', function(e) {
       isDragging = true;
+      isHorizontalScroll = false;
+      directionLocked = false;
       velocity = 0;
+      touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
       touchStartAngle = currentAngle;
       pendingAngle = currentAngle;
@@ -111,6 +131,23 @@
     ring.addEventListener('touchmove', function(e) {
       if (!isDragging) return;
       if (e.touches.length > 1) return;
+
+      // Direction lock: vertical swipes rotate the ring, horizontal swipes on
+      // the directory list fall through to native scroll. If a swipe starts on
+      // the list but is more vertical than horizontal, ring rotation wins.
+      if (!directionLocked) {
+        var dx = Math.abs(e.touches[0].clientX - touchStartX);
+        var dy = Math.abs(e.touches[0].clientY - touchStartY);
+        if (dx + dy > 8) {
+          directionLocked = true;
+          // Horizontal swipe on the member list = let browser handle it
+          if (dx > dy && e.target.closest && e.target.closest('.directory-list')) {
+            isHorizontalScroll = true;
+          }
+        }
+      }
+
+      if (isHorizontalScroll) return;
       e.preventDefault();
 
       var touchY = e.touches[0].clientY;
@@ -155,7 +192,11 @@
 
     function onTouchEnd() {
       isDragging = false;
+      var wasHorizontalScroll = isHorizontalScroll;
+      isHorizontalScroll = false;
+      directionLocked = false;
       if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; }
+      if (wasHorizontalScroll) return;
       currentAngle = pendingAngle;
 
       var nearest = snapAngle(currentAngle);
@@ -209,8 +250,16 @@
     unsettle();
   });
 
-  // ── Keyboard ──
-  document.addEventListener('keydown', function(e) {
+  // ── Keyboard (scoped to ring so screen readers can still use arrow keys) ──
+  ring.setAttribute('tabindex', '0');
+  ring.setAttribute('role', 'region');
+  ring.setAttribute('aria-roledescription', 'carousel');
+  ring.setAttribute('aria-label', 'Site panels');
+
+  ring.addEventListener('keydown', function(e) {
+    // Only navigate panels when the ring itself has focus, not child elements
+    if (e.target !== ring) return;
+
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
       targetAngle = snapAngle(currentAngle) + ANGLE_STEP;
@@ -283,7 +332,12 @@
   window.addEventListener('resize', function() {
     var wasMobile = isMobile;
     isMobile = window.matchMedia('(max-width: 767px)').matches;
-    if (isMobile !== wasMobile) { window.location.reload(); return; }
+    if (isMobile !== wasMobile) {
+      var norm = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
+      sessionStorage.setItem('wr-panel', norm);
+      window.location.reload();
+      return;
+    }
     panelDim = isMobile ? window.innerHeight : window.innerWidth;
     radius = computeRadius();
     layoutPanels();
