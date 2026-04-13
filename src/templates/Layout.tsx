@@ -15,9 +15,7 @@ const Layout: FC<PropsWithChildren<{ title?: string }>> = ({ title, children }) 
           <meta name="robots" content="noindex" />
           <meta name="theme-color" content="#AF272F" />
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-          <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
+          <link rel="stylesheet" href="/fonts.css" />
           <style>{raw(`
             *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
             body {

@@ -55,9 +55,7 @@ app.get('/', async (c) => {
           <meta property="og:locale" content="en_CA" />
           <meta name="twitter:card" content="summary_large_image" />
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-          <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;900&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet" />
+          <link rel="stylesheet" href="/fonts.css" />
           <link rel="stylesheet" href="/splash.css" />
         </head>
         <body>

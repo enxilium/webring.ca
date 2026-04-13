@@ -16,7 +16,7 @@ A webring for Canadian builders (developers, designers, founders). Hosted on Clo
 
 - All HTML is server-rendered via Hono JSX (`.tsx` files). No client-side hydration.
 - CSS is inline in the Layout component. No external CSS files, no Tailwind.
-- Space Grotesk + Space Mono loaded via Google Fonts. No other font families.
+- Space Grotesk + Space Mono self-hosted from `public/fonts/`. No other font families.
 - Light/dark mode via `prefers-color-scheme`.
 - Static assets (images, SVGs) go in `public/` — never load from external CDNs.
 - Member coordinates resolved via `src/utils/member-coords.ts` (city-name fallback) — never check `lat`/`lng` directly.
