@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { resolve, join, basename } from 'node:path'
-import { detectWidget } from '../src/utils/widget'
+import { detectWidget, extractScriptUrls, detectWidgetInBundle } from '../src/utils/widget'
 import { hasResolvableMemberCoordinates } from '../src/utils/member-coords'
 
 interface MemberInput {
@@ -20,6 +20,34 @@ function sanitize(text: string): string {
 
 function write(text: string): void {
   process.stdout.write(text + '\n')
+}
+
+const BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+function isBotChallenge(res: Response): boolean {
+  if (res.status !== 429 && res.status !== 403 && res.status !== 503) return false
+  return res.headers.has('x-vercel-mitigated') || res.headers.has('cf-mitigated')
+}
+
+async function checkWidget(body: string, url: string, slug: string): Promise<'html' | 'bundle' | false> {
+  if (detectWidget(body, slug)) return 'html'
+
+  const scriptUrls = extractScriptUrls(body, url)
+  for (const scriptUrl of scriptUrls) {
+    try {
+      const jsRes = await fetch(scriptUrl, {
+        signal: AbortSignal.timeout(5000),
+        headers: { 'User-Agent': BROWSER_UA, 'Accept': '*/*' },
+      })
+      if (!jsRes.ok) continue
+      const js = await jsRes.text()
+      if (detectWidgetInBundle(js, slug)) return 'bundle'
+    } catch {
+      // Individual script fetch failed, skip
+    }
+  }
+
+  return false
 }
 
 // ── Load current members from members/ directory ──
@@ -117,6 +145,7 @@ for (const { current, base, changedFields } of editedMembers) {
   const safeName = sanitize(current.name)
   const safeUrl = sanitize(current.url)
   let memberFailed = false
+  let memberBotChallenged = false
 
   write(`### ${safeName} (edited)\n`)
 
@@ -143,18 +172,24 @@ for (const { current, base, changedFields } of editedMembers) {
       try {
         const res = await fetch(current.url, {
           signal: AbortSignal.timeout(10000),
-          headers: { 'User-Agent': 'webring.ca validator' },
+          headers: { 'User-Agent': BROWSER_UA, 'Accept': 'text/html,*/*' },
         })
         if (res.ok) {
           write(`- PASS: ${safeUrl} responded with HTTP ${res.status}`)
 
           const body = await res.text()
-          if (detectWidget(body, current.slug)) {
+          const widgetResult = await checkWidget(body, current.url, current.slug)
+          if (widgetResult === 'html') {
             write('- PASS: Webring widget detected')
+          } else if (widgetResult === 'bundle') {
+            write('- PASS: Webring widget detected in JS bundle')
           } else {
             write(`- FAIL: Widget not detected on new URL. Make sure data-member="${sanitize(current.slug)}" matches your filename. See https://github.com/stanleypangg/webring.ca#add-the-widget`)
             memberFailed = true
           }
+        } else if (isBotChallenge(res)) {
+          write(`- WARNING: ${safeUrl} returned HTTP ${res.status} from a bot-protection challenge (Vercel/Cloudflare). Widget check skipped -- verify manually in a browser before merging.`)
+          memberBotChallenged = true
         } else {
           write(`- FAIL: ${safeUrl} returned HTTP ${res.status}. The site must return a 2xx status code.`)
           memberFailed = true
@@ -169,6 +204,8 @@ for (const { current, base, changedFields } of editedMembers) {
   if (memberFailed) {
     write('\n**Result: Not ready to merge.** Fix the issues marked FAIL above and push again.')
     hasFailure = true
+  } else if (memberBotChallenged) {
+    write('\n**Result: :warning: Ready to merge pending manual widget verification.** Open the site in a browser and confirm the webring widget renders before merging.')
   } else {
     write('')
   }
@@ -177,6 +214,7 @@ for (const { current, base, changedFields } of editedMembers) {
 // ── New members ──
 for (const member of newMembers) {
   let memberFailed = false
+  let memberBotChallenged = false
 
   const safeName = sanitize(member.name ?? '')
   const safeUrl = sanitize(member.url ?? '')
@@ -234,18 +272,24 @@ for (const member of newMembers) {
   try {
     const res = await fetch(member.url, {
       signal: AbortSignal.timeout(10000),
-      headers: { 'User-Agent': 'webring.ca validator' },
+      headers: { 'User-Agent': BROWSER_UA, 'Accept': 'text/html,*/*' },
     })
     if (res.ok) {
       write(`- PASS: ${safeUrl} responded with HTTP ${res.status}`)
 
       const body = await res.text()
-      if (detectWidget(body, member.slug)) {
+      const widgetResult = await checkWidget(body, member.url, member.slug)
+      if (widgetResult === 'html') {
         write('- PASS: Webring widget detected')
+      } else if (widgetResult === 'bundle') {
+        write('- PASS: Webring widget detected in JS bundle')
       } else {
         write(`- FAIL: Widget not detected. Make sure data-member="${sanitize(member.slug)}" matches your filename. See https://github.com/stanleypangg/webring.ca#add-the-widget`)
         memberFailed = true
       }
+    } else if (isBotChallenge(res)) {
+      write(`- WARNING: ${safeUrl} returned HTTP ${res.status} from a bot-protection challenge (Vercel/Cloudflare). Widget check skipped -- verify manually in a browser before merging.`)
+      memberBotChallenged = true
     } else {
       write(`- FAIL: ${safeUrl} returned HTTP ${res.status}. The site must return a 2xx status code.`)
       memberFailed = true
@@ -258,6 +302,8 @@ for (const member of newMembers) {
   if (memberFailed) {
     write('\n**Result: Not ready to merge.** Fix the issues marked FAIL above and push again.')
     hasFailure = true
+  } else if (memberBotChallenged) {
+    write('\n**Result: :warning: Ready to merge pending manual widget verification.** Open the site in a browser and confirm the webring widget renders before merging.')
   } else {
     write('\n**Result: Ready to merge.**')
   }

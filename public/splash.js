@@ -1,6 +1,6 @@
 (function() {
   var isMobile = window.matchMedia('(max-width: 767px)').matches;
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var ring = document.getElementById('ring');
   var track = ring.querySelector('.ring-track');
@@ -14,9 +14,17 @@
   var currentAngle = 0;
   var targetAngle = 0;
   var rawTarget = 0;
-  // Tuning
-  var SCROLL_EASE = 0.18;
-  var STEPS_PER_PANEL = 20;
+
+  // Restore panel position after resize-triggered reload
+  var _saved = parseInt(sessionStorage.getItem('wr-panel'), 10);
+  if (!isNaN(_saved) && _saved >= 0 && _saved < PANEL_COUNT) {
+    sessionStorage.removeItem('wr-panel');
+    currentAngle = _saved * ANGLE_STEP;
+    targetAngle = currentAngle;
+    rawTarget = currentAngle;
+  }
+  // Tuning -- instant snap when user prefers reduced motion
+  var SCROLL_EASE = reducedMotion ? 1.0 : 0.22;
   var prevActiveIdx = -1;
   var isSettled = true;
 
@@ -28,11 +36,6 @@
 
   function snapAngle(a) {
     return Math.round(a / ANGLE_STEP) * ANGLE_STEP;
-  }
-
-  function quantize(a) {
-    var step = ANGLE_STEP / STEPS_PER_PANEL;
-    return Math.round(a / step) * step;
   }
 
   // Place each panel on the cylinder surface
@@ -54,18 +57,31 @@
   layoutPanels();
   renderTrack();
 
-  function setWillChange(value) {
-    for (var i = 0; i < panels.length; i++) {
-      panels[i].style.willChange = value;
+  // ── Offscreen animation pause ──
+  function updateOffscreen(activeIdx) {
+    for (var p = 0; p < panels.length; p++) {
+      var near = p === activeIdx
+        || p === (activeIdx + 1) % PANEL_COUNT
+        || p === (activeIdx - 1 + PANEL_COUNT) % PANEL_COUNT;
+      if (near) panels[p].removeAttribute('data-offscreen');
+      else panels[p].setAttribute('data-offscreen', '');
     }
+  }
+
+  // ── Tick ──
+  var rafId = 0;
+
+  function startTick() {
+    if (!rafId) rafId = requestAnimationFrame(tick);
   }
 
   function unsettle() {
     if (isSettled) {
       isSettled = false;
-      setWillChange('transform');
+      track.style.willChange = 'transform';
       ring.dispatchEvent(new CustomEvent('panelunsettle'));
     }
+    startTick();
   }
 
   // ── Wheel (desktop) ──
@@ -73,12 +89,12 @@
     ring.addEventListener('wheel', function(e) {
       e.preventDefault();
 
-      var delta = e.deltaY;
+      var delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (e.deltaMode === 1) delta *= 40;
       if (e.deltaMode === 2) delta *= panelDim;
 
       rawTarget += (delta / panelDim) * ANGLE_STEP;
-      targetAngle = quantize(rawTarget);
+      targetAngle = rawTarget;
 
       unsettle();
 
@@ -88,6 +104,7 @@
   // ── Touch (mobile) ──
   if (isMobile) {
     var touchStartY = 0;
+    var touchStartX = 0;
     var touchStartAngle = 0;
     var lastTouchY = 0;
     var lastTouchTime = 0;
@@ -95,10 +112,20 @@
     var isDragging = false;
     var dragRaf = 0;
     var pendingAngle = 0;
+    var isHorizontalScroll = false;
+    var directionLocked = false;
 
     ring.addEventListener('touchstart', function(e) {
+      // When iframe is interactive, don't capture touches for carousel rotation
+      if (ring.classList.contains('is-iframe-active')) {
+        isDragging = false;
+        return;
+      }
       isDragging = true;
+      isHorizontalScroll = false;
+      directionLocked = false;
       velocity = 0;
+      touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
       touchStartAngle = currentAngle;
       pendingAngle = currentAngle;
@@ -109,6 +136,23 @@
     ring.addEventListener('touchmove', function(e) {
       if (!isDragging) return;
       if (e.touches.length > 1) return;
+
+      // Direction lock: vertical swipes rotate the ring, horizontal swipes on
+      // the directory list fall through to native scroll. If a swipe starts on
+      // the list but is more vertical than horizontal, ring rotation wins.
+      if (!directionLocked) {
+        var dx = Math.abs(e.touches[0].clientX - touchStartX);
+        var dy = Math.abs(e.touches[0].clientY - touchStartY);
+        if (dx + dy > 8) {
+          directionLocked = true;
+          // Horizontal swipe on the member list = let browser handle it
+          if (dx > dy && e.target.closest && e.target.closest('.directory-list')) {
+            isHorizontalScroll = true;
+          }
+        }
+      }
+
+      if (isHorizontalScroll) return;
       e.preventDefault();
 
       var touchY = e.touches[0].clientY;
@@ -138,13 +182,14 @@
 
           unsettle();
 
-          // Update active dot (lightweight -- just class toggle)
+          // Update active dot and offscreen state
           var norm = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
           if (norm !== prevActiveIdx) {
             prevActiveIdx = norm;
             dots.forEach(function(dot, i) {
               dot.classList.toggle('is-active', i === norm);
             });
+            updateOffscreen(norm);
             ring.dispatchEvent(new CustomEvent('panelchange', { detail: { index: norm } }));
           }
         });
@@ -152,15 +197,33 @@
     }, { passive: false });
 
     function onTouchEnd() {
+      if (ring.classList.contains('is-iframe-active')) return;
       isDragging = false;
+      var wasHorizontalScroll = isHorizontalScroll;
+      isHorizontalScroll = false;
+      directionLocked = false;
       if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; }
+      if (wasHorizontalScroll) return;
       currentAngle = pendingAngle;
 
-      // Apply momentum then snap to nearest panel
-      var momentumAngle = velocity * 150 * (ANGLE_STEP / panelDim);
-      rawTarget = currentAngle + momentumAngle;
-      targetAngle = snapAngle(rawTarget);
+      var nearest = snapAngle(currentAngle);
+      var SWIPE_THRESHOLD = 0.15; // min velocity to trigger directional snap
+
+      if (Math.abs(velocity) > SWIPE_THRESHOLD) {
+        // Swipe detected: always advance at least one panel in swipe direction
+        var dir = velocity > 0 ? 1 : -1;
+        var next = nearest + dir * ANGLE_STEP;
+        // If we already passed the next panel, snap to the one after
+        if (dir > 0 && next < currentAngle) next += ANGLE_STEP;
+        if (dir < 0 && next > currentAngle) next -= ANGLE_STEP;
+        targetAngle = next;
+      } else {
+        // No significant swipe: snap to nearest panel
+        targetAngle = nearest;
+      }
+
       rawTarget = targetAngle;
+      unsettle();
     }
     ring.addEventListener('touchend', onTouchEnd, { passive: true });
     ring.addEventListener('touchcancel', onTouchEnd, { passive: true });
@@ -181,8 +244,29 @@
     });
   });
 
-  // ── Keyboard ──
-  document.addEventListener('keydown', function(e) {
+  // ── Snap-to (programmatic) ──
+  ring.addEventListener('snapto', function(e) {
+    var idx = e.detail.index;
+    var target = idx * ANGLE_STEP;
+    var norm = ((currentAngle % 360) + 360) % 360;
+    var diff = target - norm;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    targetAngle = currentAngle + diff;
+    rawTarget = targetAngle;
+    unsettle();
+  });
+
+  // ── Keyboard (scoped to ring so screen readers can still use arrow keys) ──
+  ring.setAttribute('tabindex', '0');
+  ring.setAttribute('role', 'region');
+  ring.setAttribute('aria-roledescription', 'carousel');
+  ring.setAttribute('aria-label', 'Site panels');
+
+  ring.addEventListener('keydown', function(e) {
+    // Only navigate panels when the ring itself has focus, not child elements
+    if (e.target !== ring) return;
+
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
       targetAngle = snapAngle(currentAngle) + ANGLE_STEP;
@@ -198,18 +282,19 @@
     }
   });
 
-  // ── Tick ──
-  var rafId = 0;
-
   function tick() {
-    var diff = targetAngle - currentAngle;
-    if (Math.abs(diff) > 0.05) {
-      currentAngle += diff * SCROLL_EASE;
-    } else {
-      currentAngle = targetAngle;
-    }
+    rafId = 0;
 
-    renderTrack();
+    var diff = targetAngle - currentAngle;
+    var moving = Math.abs(diff) > 0.05;
+
+    if (moving) {
+      currentAngle += diff * SCROLL_EASE;
+      renderTrack();
+    } else if (currentAngle !== targetAngle) {
+      currentAngle = targetAngle;
+      renderTrack();
+    }
 
     // Active panel index
     var norm = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
@@ -218,37 +303,79 @@
       dots.forEach(function(dot, i) {
         dot.classList.toggle('is-active', i === norm);
       });
+      updateOffscreen(norm);
       ring.dispatchEvent(new CustomEvent('panelchange', { detail: { index: norm } }));
     }
 
-    // Dispatch settle event when animation finishes
+    // Stop loop when settled -- restarts on next input via startTick()
     if (!isSettled && currentAngle === targetAngle) {
       isSettled = true;
-      setWillChange('auto');
+      track.style.willChange = 'auto';
       ring.dispatchEvent(new CustomEvent('panelsettle', { detail: { index: norm } }));
+      return;
     }
 
-    rafId = requestAnimationFrame(tick);
+    if (moving || currentAngle !== targetAngle) {
+      rafId = requestAnimationFrame(tick);
+    }
   }
 
-  rafId = requestAnimationFrame(tick);
+  // Initial render is already done; start loop only on first input
+  // Set initial dot state
+  var initIdx = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
+  prevActiveIdx = initIdx;
+  dots.forEach(function(dot, i) { dot.classList.toggle('is-active', i === initIdx); });
+  updateOffscreen(initIdx);
+  ring.dispatchEvent(new CustomEvent('panelsettle', { detail: { index: initIdx } }));
 
   // ── Pause when hidden ──
   document.addEventListener('visibilitychange', function() {
-    if (document.hidden) cancelAnimationFrame(rafId);
-    else rafId = requestAnimationFrame(tick);
+    if (document.hidden) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    } else if (!isSettled) {
+      startTick();
+    }
   });
 
   // ── Resize ──
   window.addEventListener('resize', function() {
     var wasMobile = isMobile;
     isMobile = window.matchMedia('(max-width: 767px)').matches;
-    if (isMobile !== wasMobile) { window.location.reload(); return; }
+    if (isMobile !== wasMobile) {
+      var norm = ((Math.round(currentAngle / ANGLE_STEP) % PANEL_COUNT) + PANEL_COUNT) % PANEL_COUNT;
+      sessionStorage.setItem('wr-panel', norm);
+      window.location.reload();
+      return;
+    }
     panelDim = isMobile ? window.innerHeight : window.innerWidth;
     radius = computeRadius();
     layoutPanels();
     renderTrack();
   });
+
+  // ── Join button click overlay ──
+  // Chrome's preserve-3d hit-testing can route clicks to the rotated Explore
+  // panel instead of the Join button. The fix: a transparent <a> element
+  // OUTSIDE the ring's perspective context (so Chrome uses 2D hit-testing).
+  // It sits invisibly over the real button on settle and hides on unsettle.
+  var joinOverlay = document.getElementById('join-link-overlay');
+  var JOIN_IDX = PANEL_COUNT - 1;
+  if (joinOverlay) {
+    ring.addEventListener('panelsettle', function(e) {
+      if (e.detail.index !== JOIN_IDX) return;
+      var btn = document.querySelector('.panel[data-index="' + JOIN_IDX + '"] .join-button');
+      if (!btn) return;
+      var r = btn.getBoundingClientRect();
+      joinOverlay.style.top = r.top + 'px';
+      joinOverlay.style.left = r.left + 'px';
+      joinOverlay.style.width = r.width + 'px';
+      joinOverlay.style.height = r.height + 'px';
+      joinOverlay.style.display = 'block';
+    });
+    ring.addEventListener('panelunsettle', function() {
+      joinOverlay.style.display = 'none';
+    });
+  }
 })();
 
 /* ── Webring line animation ── */

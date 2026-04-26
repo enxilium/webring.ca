@@ -22,4 +22,5 @@ export interface HealthStatus {
 
 export type Bindings = {
   WEBRING: KVNamespace
+  DISCORD_WEBHOOK_URL?: string
 }

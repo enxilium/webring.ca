@@ -35,10 +35,10 @@ app.onError((_err, c) => {
 
 export default {
   fetch: app.fetch,
-  scheduled: async (event: ScheduledEvent, env: { WEBRING: KVNamespace }, ctx: ExecutionContext) => {
+  scheduled: async (event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) => {
     switch (event.cron) {
       case '0 0 * * *':
-        ctx.waitUntil(runHealthCheck(env.WEBRING))
+        ctx.waitUntil(runHealthCheck(env.WEBRING, env.DISCORD_WEBHOOK_URL))
         break
       case '0 0 * * SUN':
         ctx.waitUntil(runShuffle(env.WEBRING))
