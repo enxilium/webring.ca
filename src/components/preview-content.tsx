@@ -17,6 +17,11 @@ export function SitePreviewContent() {
         <span class="preview-overlay-hint">Click to interact</span>
       </div>
 
+      {/* Exit pill — persistent bar at top when iframe is interactive */}
+      <button type="button" class="preview-exit-pill" id="preview-exit" aria-label="Exit interaction">
+        {raw('&times;')} Unfocus
+      </button>
+
       {/* Fallback card — shown when iframe is blocked */}
       <div class="preview-fallback" id="preview-fallback" style="display: none;">
         <div class="preview-fallback-card">
@@ -34,10 +39,12 @@ export function SitePreviewContent() {
         <div class="preview-info">
           <span class="preview-member-name" id="preview-name"></span>
           <span class="preview-member-sep">{raw('&middot;')}</span>
-          <span class="preview-member-url" id="preview-url"></span>
+          <a class="preview-member-url" id="preview-url" href="javascript:void(0)" target="_blank" rel="noopener noreferrer"></a>
+          <span class="preview-member-sep">{raw('&middot;')}</span>
+          <span class="preview-member-city" id="preview-city"></span>
         </div>
         <button type="button" class="preview-nav preview-nav-next" id="preview-next" aria-label="Next member">{raw('&#8594;')}</button>
-        <span class="preview-member-city" id="preview-city"></span>
+        <button type="button" class="preview-nav preview-nav-random" id="preview-random" aria-label="Random member">{raw('<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2.5"/><circle cx="5.5" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="5.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg>')}</button>
         <a class="preview-open" id="preview-open" href="javascript:void(0)" target="_blank" rel="noopener noreferrer" aria-label="Open site in new tab">{raw('<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.667V12.667A1.333 1.333 0 0 1 10.667 14H3.333A1.333 1.333 0 0 1 2 12.667V5.333A1.333 1.333 0 0 1 3.333 4H7.333"/><path d="M10 2H14V6"/><path d="M6.667 9.333L14 2"/></svg>')}</a>
       </div>
     </div>

@@ -13,12 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
 
       - name: Overlay PR member files
         run: |
           git fetch origin pull/${{ github.event.pull_request.number }}/head
-          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -- 'members/*.json'); do
+          MERGE_BASE=$(git merge-base HEAD ${{ github.event.pull_request.head.sha }})
+          for file in $(git diff --name-only "$MERGE_BASE" ${{ github.event.pull_request.head.sha }} -- 'members/*.json'); do
             git show ${{ github.event.pull_request.head.sha }}:"$file" > "$file" 2>/dev/null || rm -f "$file"
           done
 
@@ -31,7 +33,7 @@ jobs:
       - name: Run validation
         id: validate
         env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BASE_SHA: HEAD
         run: |
           set +e
           OUTPUT=$(npx tsx scripts/validate.ts 2>&1)

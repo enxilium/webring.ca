@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { runHealthCheck } from '../cron/healthcheck'
-import { detectWidget } from '../utils/widget'
+import { detectWidget, extractScriptUrls, detectWidgetInBundle } from '../utils/widget'
 import { createMockKV } from './kv-mock'
 import type { Member, HealthStatus } from '../types'
 
@@ -43,9 +43,9 @@ describe('detectWidget', () => {
     expect(detectWidget(html)).toBe(true)
   })
 
-  it('rejects marker hidden in HTML comment', () => {
+  it('accepts prev/next links even when marker is only in a comment', () => {
     const html = '<!-- <div data-webring="ca"></div> --><a href="https://webring.ca/prev/alice">prev</a><a href="https://webring.ca/next/alice">next</a>'
-    expect(detectWidget(html)).toBe(false)
+    expect(detectWidget(html)).toBe(true)
   })
 
   it('rejects marker alone without embed script or prev/next links', () => {
@@ -84,9 +84,9 @@ describe('detectWidget', () => {
     expect(detectWidget(html, 'alice')).toBe(true)
   })
 
-  it('rejects prev/next links without marker', () => {
+  it('accepts prev/next links without marker', () => {
     const html = '<a href="https://webring.ca/prev/alice">prev</a><a href="https://webring.ca/next/alice">next</a>'
-    expect(detectWidget(html)).toBe(false)
+    expect(detectWidget(html)).toBe(true)
   })
 
   it('rejects when only prev link is present', () => {
@@ -129,6 +129,102 @@ describe('detectWidget', () => {
   })
 })
 
+describe('extractScriptUrls', () => {
+  it('extracts absolute same-origin script URLs', () => {
+    const html = '<script src="https://example.com/app.js"></script>'
+    expect(extractScriptUrls(html, 'https://example.com')).toEqual(['https://example.com/app.js'])
+  })
+
+  it('resolves relative URLs against base', () => {
+    const html = '<script src="/static/bundle.js"></script>'
+    expect(extractScriptUrls(html, 'https://example.com')).toEqual(['https://example.com/static/bundle.js'])
+  })
+
+  it('filters out cross-origin scripts', () => {
+    const html = '<script src="https://cdn.other.com/lib.js"></script><script src="/app.js"></script>'
+    expect(extractScriptUrls(html, 'https://example.com')).toEqual(['https://example.com/app.js'])
+  })
+
+  it('skips inline scripts without src', () => {
+    const html = '<script>console.log("hi")</script><script src="/app.js"></script>'
+    expect(extractScriptUrls(html, 'https://example.com')).toEqual(['https://example.com/app.js'])
+  })
+
+  it('returns empty array when no scripts present', () => {
+    expect(extractScriptUrls('<html></html>', 'https://example.com')).toEqual([])
+  })
+
+  it('caps at 10 scripts', () => {
+    const tags = Array.from({ length: 15 }, (_, i) => `<script src="/chunk${i}.js"></script>`).join('')
+    expect(extractScriptUrls(tags, 'https://example.com')).toHaveLength(10)
+  })
+
+  it('handles single-quoted src attributes', () => {
+    const html = "<script src='/app.js'></script>"
+    expect(extractScriptUrls(html, 'https://example.com')).toEqual(['https://example.com/app.js'])
+  })
+
+  it('handles src with query string', () => {
+    const html = '<script src="/app.js?v=abc123"></script>'
+    expect(extractScriptUrls(html, 'https://example.com')).toEqual(['https://example.com/app.js?v=abc123'])
+  })
+})
+
+describe('detectWidgetInBundle', () => {
+  it('detects webring.ca/embed.js in compiled JS', () => {
+    const js = 'var x={src:"https://webring.ca/embed.js"}'
+    expect(detectWidgetInBundle(js)).toBe(true)
+  })
+
+  it('detects embed.js with matching slug', () => {
+    const js = '{"data-member":"jace"},src:"https://webring.ca/embed.js"'
+    expect(detectWidgetInBundle(js, 'jace')).toBe(true)
+  })
+
+  it('rejects embed.js with wrong slug', () => {
+    const js = '{"data-member":"bob"},src:"https://webring.ca/embed.js"'
+    expect(detectWidgetInBundle(js, 'jace')).toBe(false)
+  })
+
+  it('rejects embed.js without data-member when slug checked', () => {
+    const js = 'src:"https://webring.ca/embed.js"'
+    expect(detectWidgetInBundle(js, 'jace')).toBe(false)
+  })
+
+  it('detects manual widget via secondary markers', () => {
+    const js = '{"data-webring":"ca"},href:"https://webring.ca/prev/alice",href:"https://webring.ca/next/alice"'
+    expect(detectWidgetInBundle(js)).toBe(true)
+  })
+
+  it('rejects data-webring without webring.ca links', () => {
+    const js = '{"data-webring":"ca"}'
+    expect(detectWidgetInBundle(js)).toBe(false)
+  })
+
+  it('rejects empty JS', () => {
+    expect(detectWidgetInBundle('')).toBe(false)
+  })
+
+  it('rejects unrelated JS', () => {
+    expect(detectWidgetInBundle('function app(){return"hello"}')).toBe(false)
+  })
+
+  it('handles real Next.js RSC compiled JSX', () => {
+    const js = '(0,ei.jsx)("div",{"data-webring":"ca","data-member":"jace",className:"flex"}),(0,ei.jsx)(gb.default,{src:"https://webring.ca/embed.js",strategy:"afterInteractive"})'
+    expect(detectWidgetInBundle(js, 'jace')).toBe(true)
+  })
+
+  it('rejects slug that is a prefix of actual data-member value', () => {
+    const js = '{"data-member":"jane-doe"},src:"https://webring.ca/embed.js"'
+    expect(detectWidgetInBundle(js, 'jane')).toBe(false)
+  })
+
+  it('slug match is case-insensitive', () => {
+    const js = '{"data-member":"Jace"},src:"https://webring.ca/embed.js"'
+    expect(detectWidgetInBundle(js, 'jace')).toBe(true)
+  })
+})
+
 describe('runHealthCheck', () => {
   it('marks members as ok when site is reachable with widget', async () => {
     const kv = createMockKV({ members: JSON.stringify([alice]) })
@@ -159,7 +255,7 @@ describe('runHealthCheck', () => {
     expect(status.consecutiveFails).toBe(1)
   })
 
-  it('marks as widget_missing when marker is in a comment', async () => {
+  it('marks as ok when marker is in a comment but prev/next links are present', async () => {
     const kv = createMockKV({ members: JSON.stringify([alice]) })
     mockFetch({
       'https://alice.example.com': { ok: true, status: 200, body: '<!-- <div data-webring="ca"></div> --><a href="https://webring.ca/prev/alice">prev</a><a href="https://webring.ca/next/alice">next</a>' },
@@ -169,7 +265,7 @@ describe('runHealthCheck', () => {
 
     const raw = await kv.get('health:alice')
     const status: HealthStatus = JSON.parse(raw!)
-    expect(status.status).toBe('widget_missing')
+    expect(status.status).toBe('ok')
   })
 
   it('marks as widget_missing when marker present but no links', async () => {
@@ -332,5 +428,74 @@ describe('runHealthCheck', () => {
     const bobRaw = await kv.get('health:bob')
     expect(JSON.parse(aliceRaw!).status).toBe('ok')
     expect(JSON.parse(bobRaw!).status).toBe('ok')
+  })
+
+  it('sends Discord notification on deactivation', async () => {
+    const prevStatus: HealthStatus = {
+      status: 'unreachable',
+      lastChecked: '2025-01-01T00:00:00.000Z',
+      consecutiveFails: 6,
+    }
+    const kv = createMockKV({
+      members: JSON.stringify([alice]),
+      'health:alice': JSON.stringify(prevStatus),
+    })
+    mockFetch({ 'https://alice.example.com': 'error' })
+    const mockNotify = vi.fn()
+
+    await runHealthCheck(kv, 'https://discord.com/api/webhooks/test', mockNotify)
+
+    expect(mockNotify).toHaveBeenCalledWith(
+      'https://discord.com/api/webhooks/test',
+      [expect.objectContaining({ event: 'deactivated', reason: 'unreachable' })],
+    )
+  })
+
+  it('sends Discord notification on reactivation', async () => {
+    const inactiveAlice = { ...alice, active: false }
+    const kv = createMockKV({ members: JSON.stringify([inactiveAlice]) })
+    mockFetch({
+      'https://alice.example.com': { ok: true, status: 200, body: VALID_WIDGET },
+    })
+    const mockNotify = vi.fn()
+
+    await runHealthCheck(kv, 'https://discord.com/api/webhooks/test', mockNotify)
+
+    expect(mockNotify).toHaveBeenCalledWith(
+      'https://discord.com/api/webhooks/test',
+      [expect.objectContaining({ event: 'reactivated' })],
+    )
+  })
+
+  it('does not send Discord notification when no transitions', async () => {
+    const kv = createMockKV({ members: JSON.stringify([alice]) })
+    mockFetch({
+      'https://alice.example.com': { ok: true, status: 200, body: VALID_WIDGET },
+    })
+    const mockNotify = vi.fn()
+
+    await runHealthCheck(kv, 'https://discord.com/api/webhooks/test', mockNotify)
+
+    expect(mockNotify).toHaveBeenCalledWith(
+      'https://discord.com/api/webhooks/test',
+      [],
+    )
+  })
+
+  it('marks SPA site as ok when widget is only in JS bundle', async () => {
+    const kv = createMockKV({ members: JSON.stringify([alice]) })
+    const spaHtml = '<html><head><script src="https://alice.example.com/assets/index.js"></script></head><body><div id="root"></div></body></html>'
+    const spaBundle = '{"data-member":"alice"},src:"https://webring.ca/embed.js"'
+    mockFetch({
+      'https://alice.example.com': { ok: true, status: 200, body: spaHtml },
+      'https://alice.example.com/assets/index.js': { ok: true, status: 200, body: spaBundle },
+    })
+
+    await runHealthCheck(kv)
+
+    const raw = await kv.get('health:alice')
+    const status: HealthStatus = JSON.parse(raw!)
+    expect(status.status).toBe('ok')
+    expect(status.consecutiveFails).toBe(0)
   })
 })

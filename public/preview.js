@@ -17,7 +17,14 @@
   var openEl = document.getElementById('preview-open');
   var prevBtn = document.getElementById('preview-prev');
   var nextBtn = document.getElementById('preview-next');
+  var randomBtn = document.getElementById('preview-random');
   var overlay = document.getElementById('preview-overlay');
+
+  // On touch devices, show "Tap to interact" instead of "Click to interact"
+  if (overlay && window.matchMedia('(max-width: 767px)').matches) {
+    var hint = overlay.querySelector('.preview-overlay-hint');
+    if (hint) hint.textContent = 'Tap to interact';
+  }
 
   var currentIdx = Math.floor(Math.random() * MEMBERS.length);
   var currentIframe = null;
@@ -33,6 +40,7 @@
     var m = MEMBERS[idx];
     nameEl.textContent = m.name;
     try { urlEl.textContent = new URL(m.url).hostname.replace(/^www\./, ''); } catch(e) { urlEl.textContent = m.url; }
+    urlEl.href = m.url;
     cityEl.textContent = m.city;
     openEl.href = m.url;
   }
@@ -42,7 +50,12 @@
     if (currentIframe) { currentIframe.remove(); currentIframe = null; }
     fallbackEl.style.display = 'none';
     skeleton.style.display = 'flex';
-    overlay.classList.remove('is-dismissed');
+    overlay.classList.remove('is-dismissed', 'is-fading');
+    overlay.classList.add('is-loading');
+    var eb = document.getElementById('preview-exit');
+    if (eb) eb.classList.remove('is-visible');
+    var r = document.getElementById('ring');
+    if (r) r.classList.remove('is-iframe-active');
   }
 
   function showFallback(idx) {
@@ -53,6 +66,7 @@
     fallbackMeta.textContent = m.city || '';
     fallbackLink.href = m.url;
     fallbackEl.style.display = 'flex';
+    overlay.classList.remove('is-loading');
   }
 
   function loadPreview(idx) {
@@ -89,6 +103,7 @@
       } catch(e) {
         skeleton.style.display = 'none';
         iframe.classList.add('is-loaded');
+        overlay.classList.remove('is-loading');
       }
     });
 
@@ -113,11 +128,27 @@
     if (isActive) loadPreview(currentIdx);
   });
 
-  // Click overlay to dismiss and interact with iframe (only when settled)
-  overlay.addEventListener('click', function() {
-    if (isSettled && !overlay.classList.contains('is-dismissed')) {
-      overlay.classList.add('is-dismissed');
-    }
+  randomBtn.addEventListener('click', function() {
+    var newIdx;
+    do { newIdx = Math.floor(Math.random() * MEMBERS.length); } while (newIdx === currentIdx && MEMBERS.length > 1);
+    currentIdx = newIdx;
+    if (isActive) loadPreview(currentIdx);
+  });
+
+  // Click overlay to dismiss and interact with iframe
+  var pendingDismiss = false;
+  overlay.addEventListener('click', function(e) {
+    // Guard: only handle when Explore panel is active. Chrome's 3D hit-testing
+    // can occasionally dispatch clicks to elements in non-active panels, so we
+    // must check isActive before acting (or dispatching snapto).
+    if (!isActive) return;
+    e.stopPropagation();
+    if (overlay.classList.contains('is-dismissed')) return;
+
+    // Fade the hint immediately, snap the ring, dismiss after settle
+    overlay.classList.add('is-fading');
+    pendingDismiss = true;
+    ringEl.dispatchEvent(new CustomEvent('snapto', { detail: { index: EXPLORE_INDEX } }));
   });
 
   // Show/hide the hint based on settled state
@@ -125,12 +156,53 @@
     overlay.classList.toggle('is-ready', isSettled);
   }
 
+  var exitBtn = document.getElementById('preview-exit');
+
+  function restoreOverlay() {
+    if (!overlay.classList.contains('is-dismissed')) return;
+    overlay.classList.remove('is-dismissed', 'is-fading');
+    if (currentIframe) {
+      currentIframe.classList.remove('is-interactive');
+      currentIframe.blur();
+    }
+    if (exitBtn) exitBtn.classList.remove('is-visible');
+    var r = document.getElementById('ring');
+    if (r) r.classList.remove('is-iframe-active');
+    window.focus();
+  }
+
+  // Exit pill: restore overlay when tapped
+  if (exitBtn) {
+    var exitTouchStarted = false;
+    exitBtn.addEventListener('touchstart', function(e) {
+      e.stopPropagation();
+      exitTouchStarted = true;
+    }, { passive: true });
+    exitBtn.addEventListener('touchend', function(e) {
+      e.stopPropagation();
+      if (exitTouchStarted) {
+        exitTouchStarted = false;
+        e.preventDefault(); // prevent delayed click
+        restoreOverlay();
+      }
+    });
+    // Desktop fallback
+    exitBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      restoreOverlay();
+    });
+  }
+
   // Escape restores the overlay when parent has focus
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && overlay.classList.contains('is-dismissed')) {
-      overlay.classList.remove('is-dismissed');
-      if (currentIframe) currentIframe.blur();
-      window.focus();
+    if (e.key === 'Escape') restoreOverlay();
+  });
+
+  // Click anywhere on the parent page (outside iframe) restores overlay
+  document.addEventListener('mousedown', function(e) {
+    if (!overlay.classList.contains('is-dismissed')) return;
+    if (!currentIframe || !currentIframe.contains(e.target)) {
+      restoreOverlay();
     }
   });
 
@@ -139,39 +211,43 @@
     if (!overlay.classList.contains('is-dismissed')) return;
     window.addEventListener('focus', function onFocus() {
       window.removeEventListener('focus', onFocus);
-      overlay.classList.remove('is-dismissed');
+      restoreOverlay();
     });
   });
 
-  // When user scrolls over the dismissed overlay, un-dismiss it so ring handles scroll
+  // When user scrolls over the dismissed overlay, restore it so ring handles scroll
   overlay.addEventListener('wheel', function() {
     if (overlay.classList.contains('is-dismissed')) {
-      overlay.classList.remove('is-dismissed');
+      restoreOverlay();
       isSettled = false;
     }
   });
 
-  // Desktop: listen for panelchange events from scroll handler
   var EXPLORE_INDEX = 3;
   var ringEl = document.getElementById('ring');
+  var isMobilePreview = window.matchMedia('(max-width: 767px)').matches;
 
-  ringEl.addEventListener('panelchange', function(e) {
-    if (e.detail.index === EXPLORE_INDEX && !isActive) {
-      isActive = true;
-      panel.style.opacity = '1';
-      loadPreview(currentIdx);
-    } else if (e.detail.index !== EXPLORE_INDEX && isActive) {
-      isActive = false;
-      isSettled = false;
-      panel.style.opacity = '0';
-      destroyPreview();
-    }
-  });
+  // Desktop only: listen for panelchange events from scroll handler
+  // (mobile uses IntersectionObserver below to avoid double-fire flashing)
+  if (!isMobilePreview) {
+    ringEl.addEventListener('panelchange', function(e) {
+      if (e.detail.index === EXPLORE_INDEX && !isActive) {
+        isActive = true;
+        panel.style.opacity = '1';
+        loadPreview(currentIdx);
+      } else if (e.detail.index !== EXPLORE_INDEX && isActive) {
+        isActive = false;
+        isSettled = false;
+        panel.style.opacity = '0';
+        destroyPreview();
+      }
+    });
+  }
 
   // Re-enable overlay when scrolling starts (prevent iframe from capturing scroll)
   ringEl.addEventListener('panelunsettle', function() {
     isSettled = false;
-    overlay.classList.remove('is-dismissed');
+    restoreOverlay();
     updateOverlayState();
   });
 
@@ -180,11 +256,18 @@
     if (e.detail.index === EXPLORE_INDEX && isActive) {
       isSettled = true;
       updateOverlayState();
+      if (pendingDismiss) {
+        pendingDismiss = false;
+        overlay.classList.add('is-dismissed');
+        if (currentIframe) currentIframe.classList.add('is-interactive');
+        if (exitBtn) exitBtn.classList.add('is-visible');
+        ringEl.classList.add('is-iframe-active');
+      }
     }
   });
 
-  // Mobile: use IntersectionObserver (scroll handler doesn't run on mobile)
-  if (window.matchMedia('(max-width: 767px)').matches) {
+  // Mobile: use IntersectionObserver instead of panelchange events
+  if (isMobilePreview) {
     var panelEl = panel.closest('.panel');
     if (panelEl && 'IntersectionObserver' in window) {
       var observer = new IntersectionObserver(function(entries) {
